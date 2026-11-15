@@ -1,0 +1,28 @@
+# Copied to the VPS (/opt/stonks-market) by .github/workflows/deploy.yml on every deploy.
+# Values come from .env (secrets + Traefik settings, managed by hand on the VPS)
+# and .deploy.env (IMAGE_TAG, written by CI).
+services:
+  app:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .env}/stonks-market:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - app-data:/app/.data
+    networks:
+      - traefik
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-proxy}
+      - traefik.http.routers.stonks-market.rule=Host(`${DOMAIN:?set DOMAIN in .env}`)
+      - traefik.http.routers.stonks-market.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.stonks-market.tls=true
+      - traefik.http.routers.stonks-market.tls.certresolver=${TRAEFIK_CERTRESOLVER:-cf}
+      - traefik.http.services.stonks-market.loadbalancer.server.port=3000
+
+volumes:
+  app-data:
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-proxy}
+    external: true
