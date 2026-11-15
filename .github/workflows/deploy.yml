@@ -60,11 +60,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           install -m 700 -d ~/.ssh
-          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          ssh-keygen -y -f ~/.ssh/id_ed25519 > /dev/null \
+            || { echo "::error::SSH_KEY is not a valid private key (paste the whole file incl. BEGIN/END lines)"; exit 1; }
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
 
       - name: Upload compose file
         run: scp -P "$SSH_PORT" deploy/docker-compose.yml "$TARGET:$APP_DIR/docker-compose.yml"
