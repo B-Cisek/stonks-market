@@ -5,5 +5,15 @@ import * as schema from './db/schema'
 
 export default defineServerAuth(() => ({
   database: drizzleAdapter(db, { provider: 'pg', schema }),
-  emailAndPassword: { enabled: true },
+  advanced: {
+    database: {
+      joins: true,
+    },
+  },
+  socialProviders: {
+    kick: {
+      clientId: process.env.KICK_CLIENT_ID as string,
+      clientSecret: process.env.KICK_CLIENT_SECRET as string,
+    },
+  },
 }))
