@@ -1,6 +1,12 @@
 import { defineConfig } from 'drizzle-kit'
 
-try { process.loadEnvFile() } catch {} // Node 22+, wczytuje .env bez dotenv
+// Node 22+, wczytuje .env bez dotenv
+try {
+  process.loadEnvFile()
+}
+catch {
+  // brak .env (np. CI) — zmienne przychodzą ze środowiska
+}
 
 export default defineConfig({
   dialect: 'postgresql',

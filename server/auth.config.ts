@@ -4,6 +4,6 @@ import { db } from './db'
 import * as schema from './db/schema'
 
 export default defineServerAuth(() => ({
-  database: drizzleAdapter(db, { provider: 'pg', schema, }),
+  database: drizzleAdapter(db, { provider: 'pg', schema }),
   emailAndPassword: { enabled: true },
 }))
