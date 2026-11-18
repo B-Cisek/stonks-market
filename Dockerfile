@@ -22,6 +22,8 @@ ENV NODE_ENV=production \
     PORT=3000
 
 COPY --from=build --chown=node:node /app/.output ./.output
+# SQL migrations applied on startup by server/plugins/migrate.ts (resolved from WORKDIR /app).
+COPY --from=build --chown=node:node /app/server/db/migrations ./server/db/migrations
 RUN mkdir -p /app/.data && chown node:node /app/.data
 
 USER node

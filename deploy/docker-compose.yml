@@ -4,12 +4,14 @@
 services:
   app:
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER in .env}/stonks-market:${IMAGE_TAG:-latest}
+    container_name: stonks-market
     restart: unless-stopped
     env_file: .env
     volumes:
       - app-data:/app/.data
     networks:
       - traefik
+      - db
     labels:
       - traefik.enable=true
       - traefik.docker.network=${TRAEFIK_NETWORK:-proxy}
@@ -25,4 +27,7 @@ volumes:
 networks:
   traefik:
     name: ${TRAEFIK_NETWORK:-proxy}
+    external: true
+  db:
+    name: db
     external: true
