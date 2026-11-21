@@ -69,8 +69,6 @@ Nowy plik `server/db/schema/game.ts`, eksportowany z `server/db/schema/index.ts`
 | `currency` | char(3) not null | |
 | `type` | `instrument_type` not null | |
 | `category` | `asset_category` null | null dla indeksów (benchmark nie jest do wyboru) |
-| `last_close` | numeric | cache ostatniego zamknięcia (szybki ranking) |
-| `last_close_date` | date | |
 | `created_at`, `updated_at` | timestamp | jak w `auth.ts` |
 
 PK `symbol` gwarantuje „spółka raz w bazie”. Jeden dostawca danych — przy ewentualnej zmianie
@@ -85,7 +83,8 @@ zmienia tylko ceny, więc ręczna korekta admina to zwykła edycja `category`.
 | `date` | date | dzień sesji |
 | `close` | numeric not null | zamknięcie skorygowane o splity (nie o dywidendy) |
 
-PK `(symbol, date)`. Job robi upsert i aktualizuje `instrument.last_close*`.
+PK `(symbol, date)`. Job robi upsert. Ostatnia cena instrumentu to najnowszy wiersz
+(`DISTINCT ON (symbol) ... ORDER BY symbol, date DESC`) — korzysta z indeksu PK, bez cache w `instrument`.
 
 ### `season` — sezon gry
 
@@ -134,7 +133,7 @@ Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔
 - Job dzienny pobiera ceny tylko instrumentów, które mają wybory w bieżącym sezonie, oraz benchmarku
   (po zmianie wyboru w oknie zapisów mogą zostać „osierocone” instrumenty — po prostu są pomijane).
 - Cena startowa: zamknięcie z ostatniej sesji ≤ `start_date` danego instrumentu (giełdy mają różne dni wolne).
-- Wynik wyboru: `last_close / start_price - 1`. Wynik gracza: średnia z jego wyborów.
+- Wynik wyboru: `ostatnie close / start_price - 1`. Wynik gracza: średnia z jego wyborów.
   Benchmark: to samo dla instrumentu o `symbol = BENCHMARK_SYMBOL`, z tą samą ceną startową. Zielony = wynik gracza > wynik benchmarku.
 - Kategoria przy tworzeniu instrumentu: z mapowania giełda → `pl` (GPW) / `eu` (giełdy europejskie) / `world` (reszta).
 
