@@ -129,6 +129,8 @@ Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔
   nie może być indeksem, a jego kategoria musi być równa kategorii slotu. Filtry działają już w wynikach
   wyszukiwania i ponownie przy zapisie wyboru.
 - Instrument zapisujemy (upsert) w momencie zapisu pierwszego wyboru z danym tickerem.
+- Job dzienny dociąga brakujące dni (od ostatniej zapisanej daty lub, dla nowego instrumentu, od kilku dni przed
+  `season.start_date`), żeby `close` z dnia startu zawsze był w historii — również gdy job któregoś dnia nie zadziała.
 - Job dzienny pobiera ceny tylko instrumentów, które mają wybory w bieżącym sezonie, oraz benchmarku
   (po zmianie wyboru w oknie zapisów mogą zostać „osierocone” instrumenty — po prostu są pomijane).
 - Cena startowa: `close` z ostatniej sesji ≤ `season.start_date` danego instrumentu (giełdy mają różne dni wolne).
