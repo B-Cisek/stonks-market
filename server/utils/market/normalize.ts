@@ -138,7 +138,13 @@ export function toPriceRows(
     month: '2-digit',
     day: '2-digit',
   })
-  return quotes
-    .filter(q => q.close != null)
-    .map(q => ({ date: formatDate.format(q.date), close: q.close!.toFixed(4) }))
+  // Yahoo potrafi dorzucić dodatkową świecę w chwili zdarzenia (dywidenda, split) — dwa wiersze z tą samą datą
+  // wywaliłyby upsert („ON CONFLICT DO UPDATE command cannot affect row a second time”), więc zostaje ostatni.
+  const byDate = new Map<string, PriceRow>()
+  for (const q of quotes) {
+    if (q.close == null) continue
+    const date = formatDate.format(q.date)
+    byDate.set(date, { date, close: q.close.toFixed(4) })
+  }
+  return [...byDate.values()]
 }
