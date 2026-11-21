@@ -10,6 +10,7 @@ const yf = new YahooFinance({ suppressNotices: ['yahooSurvey'] })
 export const searchStocks = defineCachedFunction(
   async (q: string): Promise<StockCandidate[]> => {
     const { quotes } = await yf.search(toSearchQuery(q), { quotesCount: 20, newsCount: 0 })
+
     return quotes
       .map(quote => toStockCandidate(quote as Parameters<typeof toStockCandidate>[0]))
       .filter(candidate => candidate !== null)
@@ -24,7 +25,9 @@ export const searchStocks = defineCachedFunction(
 // Ponowna walidacja tickera przy zapisie wyboru; null = nieznany albo niedozwolony.
 export async function lookupStock(symbol: string): Promise<StockDetails | null> {
   const quote = await yf.quote(symbol)
+
   if (!quote) return null
+
   return toStockDetails(quote)
 }
 

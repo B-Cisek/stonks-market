@@ -94,8 +94,11 @@ export function toStockCandidate(q: {
   shortname?: string
 }): StockCandidate | null {
   if (!q.symbol || q.quoteType !== 'EQUITY') return null
+
   const category = categoryForExchange(q.exchange)
+
   if (!category) return null
+
   return {
     symbol: q.symbol,
     // shortname bywa nieczytelne (np. „PKN C.XWAR PLN”)

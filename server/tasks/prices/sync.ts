@@ -2,7 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '../../db'
 import { instrument, instrumentPrice, pick, season } from '../../db/schema'
-import { BENCHMARK_INSTRUMENT, BENCHMARK_SYMBOL } from '../../utils/game'
+import { BENCHMARK_INSTRUMENT, BENCHMARK_SYMBOL } from '../../utils/benchmark'
 import { fetchHistory } from '../../utils/market/yahoo'
 
 // zapas na święta przed startem sezonu i późne korekty dostawcy po jego końcu

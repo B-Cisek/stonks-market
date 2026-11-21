@@ -70,7 +70,7 @@ PK `(symbol, date)`. Ostatnia cena to najnowszy wiersz
 | `created_at` | `timestamp` not null | |
 
 Benchmark to zawsze S&P 500 — bez kolumny w `season`; instrument wskazywany stałą w kodzie
-(`BENCHMARK_SYMBOL = '^GSPC'` w `server/utils/game.ts`). Job cen sam dodaje ten instrument do bazy, jeśli go brak (bez osobnego seeda).
+(`BENCHMARK_SYMBOL = '^GSPC'` w `server/utils/benchmark.ts`). Job cen sam dodaje ten instrument do bazy, jeśli go brak (bez osobnego seeda).
 
 ### `pick` — wybór gracza w kategorii
 
