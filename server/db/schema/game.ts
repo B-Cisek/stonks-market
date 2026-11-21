@@ -104,7 +104,11 @@ export const seasonRelations = relations(season, ({ many }) => ({
   picks: many(pick),
 }))
 
-// user → many picks pominięte: userRelations żyje w generowanym auth.ts.
+// Osobne relations(user) obok userRelations z generowanego auth.ts — Drizzle scala je w jedną konfigurację.
+export const userGameRelations = relations(user, ({ many }) => ({
+  picks: many(pick),
+}))
+
 export const pickRelations = relations(pick, ({ one }) => ({
   season: one(season, {
     fields: [pick.seasonId],
