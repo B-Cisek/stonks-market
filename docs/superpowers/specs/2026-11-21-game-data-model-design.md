@@ -129,8 +129,10 @@ Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔
   nie może być indeksem, a jego kategoria musi być równa kategorii slotu. Filtry działają już w wynikach
   wyszukiwania i ponownie przy zapisie wyboru.
 - Instrument zapisujemy (upsert) w momencie zapisu pierwszego wyboru z danym tickerem.
-- Job dzienny dociąga brakujące dni (od ostatniej zapisanej daty lub, dla nowego instrumentu, od kilku dni przed
-  `season.start_date`), żeby `close` z dnia startu zawsze był w historii — również gdy job któregoś dnia nie zadziała.
+- Job dzienny dla każdego symbolu pobiera **całą historię sezonu** (od kilku dni przed `season.start_date` do dziś,
+  ceny skorygowane o splity) i robi upsert do `instrument_price`. Jedno zapytanie na symbol. Dzięki temu:
+  split (dostawca przelicza historię wstecz) poprawia się sam, cena startowa wylicza się na nowo, a dni,
+  w których job nie zadziałał, oraz korekty dostawcy uzupełniają się automatycznie. Bez wykrywania splitów.
 - Job dzienny pobiera ceny tylko instrumentów, które mają wybory w bieżącym sezonie, oraz benchmarku
   (po zmianie wyboru w oknie zapisów mogą zostać „osierocone” instrumenty — po prostu są pomijane).
 - Cena startowa: `close` z ostatniej sesji ≤ `season.start_date` danego instrumentu (giełdy mają różne dni wolne).
@@ -146,7 +148,8 @@ Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔
   filtry, dojdzie osobna lista/tabela.
 - Zmiana kategorii przez admina nie przenosi istniejących wyborów automatycznie.
 - `numeric` dla cen (Drizzle zwraca string — konwersja w kodzie liczącym).
-- Ceny skorygowane o splity; przy splicie job odświeża historię instrumentu (cena startowa wylicza się sama).
+- Ceny skorygowane o splity (nie o dywidendy) — obsługa splitów przez codzienne nadpisywanie historii sezonu
+  (odrzucony wariant: pobieranie tylko ostatniego dnia + wykrywanie zdarzeń `split` — więcej logiki, ciche błędy).
 - Brak osobnej tabeli „udział gracza w sezonie” — udział = posiadanie wyborów. Do dodania, jeśli pojawią się
   dane per gracz-sezon (np. nick drużyny).
 
