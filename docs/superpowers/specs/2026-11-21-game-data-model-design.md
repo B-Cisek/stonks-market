@@ -62,21 +62,21 @@ Nowy plik `server/db/schema/game.ts`, eksportowany z `server/db/schema/index.ts`
 | kolumna | typ | uwagi |
 |---|---|---|
 | `id` | integer identity PK | |
-| `provider` | text not null | np. `yahoo` |
-| `provider_symbol` | text not null | symbol u dostawcy, np. `PKN.WA`, `^GSPC` |
+| `symbol` | text not null unique | symbol u dostawcy danych, np. `PKN.WA`, `^GSPC` |
 | `name` | text not null | |
 | `exchange` | text | kod giełdy od dostawcy |
 | `country` | text | ISO kraju, jeśli dostawca podaje |
 | `currency` | char(3) not null | |
 | `type` | `instrument_type` not null | |
 | `category` | `asset_category` null | null dla indeksów (benchmark nie jest do wyboru) |
-| `category_locked` | boolean not null default false | true = ustawione ręcznie przez admina, job nie nadpisuje |
 | `status` | `instrument_status` not null default `active` | |
 | `last_close` | numeric | cache ostatniego zamknięcia (szybki ranking) |
 | `last_close_date` | date | |
 | `created_at`, `updated_at` | timestamp | jak w `auth.ts` |
 
-Unikalność: `unique(provider, provider_symbol)` — to gwarantuje „spółka raz w bazie”.
+Unikalność `symbol` gwarantuje „spółka raz w bazie”. Jeden dostawca danych — przy ewentualnej zmianie
+dostawcy symbole migruje się jednorazowo. Kategoria ustawiana raz przy tworzeniu instrumentu; job dzienny
+zmienia tylko ceny, więc ręczna korekta admina to zwykła edycja `category`.
 
 ### `instrument_price` — ceny dzienne
 
@@ -129,7 +129,7 @@ Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔
   instrument musi być `active`, nie `index` i mieć `category` równe kategorii slotu.
 - Cena startowa: zamknięcie z ostatniej sesji ≤ `start_date` danego instrumentu (giełdy mają różne dni wolne).
 - Wynik wyboru: `last_close / start_price - 1`. Wynik gracza: średnia z jego wyborów.
-  Benchmark: to samo dla instrumentu o `provider_symbol = BENCHMARK_SYMBOL`, z tą samą ceną startową. Zielony = wynik gracza > wynik benchmarku.
+  Benchmark: to samo dla instrumentu o `symbol = BENCHMARK_SYMBOL`, z tą samą ceną startową. Zielony = wynik gracza > wynik benchmarku.
 - Kategoria przy tworzeniu instrumentu: z mapowania giełda → `pl` (GPW) / `eu` (giełdy europejskie) / `world` (reszta).
 
 ## Decyzje podjęte przeze mnie (do sprawdzenia)
