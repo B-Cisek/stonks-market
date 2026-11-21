@@ -15,7 +15,6 @@
     "auth:generate": "auth generate --config auth.cli.ts --output server/db/schema/auth.ts -y && eslint --fix server/db/schema/auth.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:test": "podman exec -i sm-db psql -U admin -d stonks_market -v ON_ERROR_STOP=1 -q < server/db/tests/game-schema.sql",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
