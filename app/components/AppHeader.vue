@@ -13,6 +13,13 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
   ],
   [
     {
+      label: 'Moje wyniki',
+      icon: 'i-lucide-chart-line',
+      to: `/gracze/${user.value?.id}`,
+    },
+  ],
+  [
+    {
       label: 'Wyloguj',
       icon: 'i-lucide-log-out',
       color: 'error',

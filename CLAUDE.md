@@ -26,6 +26,7 @@ Wersje zainstalowane wg `pnpm-lock.yaml`. W `package.json` część zależności
 | UI | Nuxt UI (`@nuxt/ui`) | 4.12.0 |
 | | Tailwind CSS | 4.3.5 |
 | | Tiptap (`@tiptap/*`) | 3.34.0 (zainstalowany, jeszcze nieużywany w `app/`) |
+| | TanStack Charts (`@tanstack/charts`, peer dla `UChart`) | 1.5.0 |
 | Auth | Better Auth (`better-auth`, `auth` CLI, `@better-auth/drizzle-adapter`) | 1.7.25 |
 | | `@nuxtjs/better-auth` | 0.3.17 |
 | Baza | PostgreSQL | 18.7 (`postgres:18.7-alpine`) |

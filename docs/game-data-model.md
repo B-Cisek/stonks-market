@@ -139,7 +139,7 @@ dochodzi kolumna `pick.start_date` (migracja z wartością `season.start_date`),
 
 ## Do zrobienia
 
-- API zapisu wyboru, ranking, UI (modal wyboru korzysta z `GET /api/instruments/search`).
+- ~~API zapisu wyboru, ranking, UI~~ — zrobione: `GET/PUT /api/picks` + kreator w modalu `PicksModal` (zasady → krok na kategorię → podsumowanie; searchbox na `GET /api/instruments/search`), `GET /api/ranking` + tabela na `/`; strona gracza `/gracze/[id]` (`GET /api/players/:id`: spółki z cenami, dzienna historia wyniku vs S&P 500, wykres `UChart`). Logika rankingu współdzielona w `server/utils/ranking.ts`.
 - Seed sezonu 2027.
 - Rola admina (np. plugin `admin` Better Auth dodający `role` do `user`).
 - Blokowanie konkretnych tickerów — jeśli będzie potrzebne, osobna lista/tabela.
