@@ -41,7 +41,10 @@ Docelowo dojdą kategorie: surowiec i kryptowaluta.
 
 - Cena startowa wspólna dla wszystkich: zamknięcie z dnia startu sezonu (= zamknięcia zapisów).
 - Spółki trafiają do bazy, gdy gracz wyszuka i wybierze je z zewnętrznego źródła danych;
-  kategoria ustalana automatycznie po giełdzie; admin może ją poprawić lub zablokować instrument.
+  kategoria ustalana automatycznie po giełdzie; admin może ją poprawić.
+- W `instrument` są tylko instrumenty już wybrane przez graczy (+ benchmark). Gracz szuka w modalu
+  (searchbox → API dostawcy); niedozwolone instrumenty odfiltrowujemy przed zapisem, nie trzymamy ich w bazie.
+- PK instrumentu to ticker dostawcy (np. `PKN.WA`).
 - Podejście 1.
 - Benchmark zawsze S&P 500 — bez kolumny w `season`; instrument wskazywany stałą w kodzie
   (`BENCHMARK_SYMBOL`, np. `^GSPC` u wybranego dostawcy).
@@ -55,26 +58,23 @@ Nowy plik `server/db/schema/game.ts`, eksportowany z `server/db/schema/index.ts`
 - `asset_category`: `pl`, `eu`, `world`, `commodity`, `crypto` — wszystkie od razu (unikamy późniejszego
   `ALTER TYPE`), na start aktywne tylko trzy pierwsze.
 - `instrument_type`: `stock`, `index`, `commodity`, `crypto`.
-- `instrument_status`: `active`, `blocked`.
 
 ### `instrument` — instrument zapisany raz
 
 | kolumna | typ | uwagi |
 |---|---|---|
-| `id` | integer identity PK | |
-| `symbol` | text not null unique | symbol u dostawcy danych, np. `PKN.WA`, `^GSPC` |
+| `symbol` | text PK | ticker u dostawcy danych, np. `PKN.WA`, `^GSPC` |
 | `name` | text not null | |
 | `exchange` | text | kod giełdy od dostawcy |
 | `country` | text | ISO kraju, jeśli dostawca podaje |
 | `currency` | char(3) not null | |
 | `type` | `instrument_type` not null | |
 | `category` | `asset_category` null | null dla indeksów (benchmark nie jest do wyboru) |
-| `status` | `instrument_status` not null default `active` | |
 | `last_close` | numeric | cache ostatniego zamknięcia (szybki ranking) |
 | `last_close_date` | date | |
 | `created_at`, `updated_at` | timestamp | jak w `auth.ts` |
 
-Unikalność `symbol` gwarantuje „spółka raz w bazie”. Jeden dostawca danych — przy ewentualnej zmianie
+PK `symbol` gwarantuje „spółka raz w bazie”. Jeden dostawca danych — przy ewentualnej zmianie
 dostawcy symbole migruje się jednorazowo. Kategoria ustawiana raz przy tworzeniu instrumentu; job dzienny
 zmienia tylko ceny, więc ręczna korekta admina to zwykła edycja `category`.
 
@@ -82,11 +82,11 @@ zmienia tylko ceny, więc ręczna korekta admina to zwykła edycja `category`.
 
 | kolumna | typ | uwagi |
 |---|---|---|
-| `instrument_id` | FK → instrument, cascade | |
+| `symbol` | FK → instrument, on delete cascade, on update cascade | |
 | `date` | date | dzień sesji |
 | `close` | numeric not null | zamknięcie skorygowane o splity (nie o dywidendy) |
 
-PK `(instrument_id, date)`. Job robi upsert i aktualizuje `instrument.last_close*`.
+PK `(symbol, date)`. Job robi upsert i aktualizuje `instrument.last_close*`.
 
 ### `season` — sezon gry
 
@@ -109,12 +109,14 @@ PK `(instrument_id, date)`. Job robi upsert i aktualizuje `instrument.last_close
 | `season_id` | FK → season, cascade | |
 | `user_id` | text FK → user, cascade | |
 | `category` | `asset_category` not null | |
-| `instrument_id` | FK → instrument, restrict | |
+| `symbol` | FK → instrument, on delete restrict, on update cascade | |
 | `start_price` | numeric null | uzupełniane po `start_date` |
 | `start_date` | date null | dzień, z którego wzięto cenę (per wybór — elastyczność na przyszłość) |
 | `created_at`, `updated_at` | timestamp | |
 
-`unique(season_id, user_id, category)`, indeksy na `season_id` i `instrument_id`.
+`unique(season_id, user_id, category)`, indeksy na `season_id` i `symbol`.
+
+FK z `on update cascade`: gdy spółka zmieni ticker (np. FB → META), wystarczy jeden `UPDATE instrument`.
 
 `start_price`/`start_date` są per wybór, choć dziś wszyscy mają te same — jeśli kiedyś zapisy będą dłuższe
 lub z innym scoringiem, nie trzeba przebudowy.
@@ -126,7 +128,12 @@ Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔
 ## Reguły (logika aplikacji, nie DB)
 
 - Wybór/zmiana możliwa tylko w `[entry_opens_at, entry_closes_at)`, dla kategorii z `season.categories`,
-  instrument musi być `active`, nie `index` i mieć `category` równe kategorii slotu.
+  instrument musi przejść filtry (np. tylko akcje — bez ETF/funduszy/warrantów, opcjonalnie minimalna cena),
+  nie może być indeksem, a jego kategoria musi być równa kategorii slotu. Filtry działają już w wynikach
+  wyszukiwania i ponownie przy zapisie wyboru.
+- Instrument zapisujemy (upsert) w momencie zapisu pierwszego wyboru z danym tickerem.
+- Job dzienny pobiera ceny tylko instrumentów, które mają wybory w bieżącym sezonie, oraz benchmarku
+  (po zmianie wyboru w oknie zapisów mogą zostać „osierocone” instrumenty — po prostu są pomijane).
 - Cena startowa: zamknięcie z ostatniej sesji ≤ `start_date` danego instrumentu (giełdy mają różne dni wolne).
 - Wynik wyboru: `last_close / start_price - 1`. Wynik gracza: średnia z jego wyborów.
   Benchmark: to samo dla instrumentu o `symbol = BENCHMARK_SYMBOL`, z tą samą ceną startową. Zielony = wynik gracza > wynik benchmarku.
@@ -136,7 +143,8 @@ Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔
 
 - Gracz może zmieniać wybory dowolnie do zamknięcia zapisów; nie trzymamy historii zmian.
 - W rankingu są tylko gracze z kompletem wyborów we wszystkich aktywnych kategoriach.
-- Zablokowanie instrumentu blokuje nowe wybory; istniejące zostają (admin może je usunąć ręcznie).
+- Brak blokowania konkretnych tickerów — jeśli admin kiedyś będzie chciał zbanować ticker, który przechodzi
+  filtry, dojdzie osobna lista/tabela.
 - Zmiana kategorii przez admina nie przenosi istniejących wyborów automatycznie.
 - `numeric` dla cen (Drizzle zwraca string — konwersja w kodzie liczącym).
 - Ceny skorygowane o splity; przy splicie job odświeża historię instrumentu i przelicza `start_price`.
