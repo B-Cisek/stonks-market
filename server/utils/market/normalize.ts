@@ -69,6 +69,21 @@ export function categoryForExchange(exchange: string | undefined): PickCategory 
   return EXCHANGE_CATEGORY[exchange]!
 }
 
+// Znaki, których NFD nie rozkłada na literę + znak diakrytyczny.
+const SPECIAL_LETTERS: Record<string, string> = { ł: 'l', ø: 'o', ß: 'ss', æ: 'ae', œ: 'oe' }
+
+// Zapytanie do wyszukiwarki Yahoo (i klucz cache): bez diakrytyków, małymi literami, pojedyncze spacje.
+// Yahoo gubi wyniki dla części znaków diakrytycznych („żabka” nie znajduje ZAB.WA, „zabka” znajduje).
+export function toSearchQuery(q: string): string {
+  return q
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[łøßæœ]/g, ch => SPECIAL_LETTERS[ch]!)
+    .replace(/\s+/g, ' ')
+}
+
 // Pozycja z wyników wyszukiwania → kandydat do wyboru albo null (nie-akcja, giełda spoza listy).
 export function toStockCandidate(q: {
   symbol?: string
