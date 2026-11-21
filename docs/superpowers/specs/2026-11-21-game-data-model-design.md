@@ -66,7 +66,6 @@ Nowy plik `server/db/schema/game.ts`, eksportowany z `server/db/schema/index.ts`
 | `symbol` | text PK | ticker u dostawcy danych, np. `PKN.WA`, `^GSPC` |
 | `name` | text not null | |
 | `exchange` | text | kod giełdy od dostawcy |
-| `country` | text | ISO kraju, jeśli dostawca podaje |
 | `currency` | char(3) not null | |
 | `type` | `instrument_type` not null | |
 | `category` | `asset_category` null | null dla indeksów (benchmark nie jest do wyboru) |
