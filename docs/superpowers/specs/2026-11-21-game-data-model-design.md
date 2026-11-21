@@ -108,16 +108,15 @@ PK `(symbol, date)`. Job robi upsert. Ostatnia cena instrumentu to najnowszy wie
 | `user_id` | text FK → user, cascade | |
 | `category` | `asset_category` not null | |
 | `symbol` | FK → instrument, on delete restrict, on update cascade | |
-| `start_price` | numeric null | uzupełniane po `start_date` |
-| `start_date` | date null | dzień, z którego wzięto cenę (per wybór — elastyczność na przyszłość) |
 | `created_at`, `updated_at` | timestamp | |
 
 `unique(season_id, user_id, category)`, indeksy na `season_id` i `symbol`.
 
 FK z `on update cascade`: gdy spółka zmieni ticker (np. FB → META), wystarczy jeden `UPDATE instrument`.
 
-`start_price`/`start_date` są per wybór, choć dziś wszyscy mają te same — jeśli kiedyś zapisy będą dłuższe
-lub z innym scoringiem, nie trzeba przebudowy.
+Cena startowa nie jest zapisywana w `pick` — wyliczana z `instrument_price` i `season.start_date`
+(brak duplikacji, automatycznie spójna po korekcie splitów). Jeśli kiedyś zapisy będą dłuższe z ceną od dnia
+wyboru, dochodzi kolumna `pick.start_date` (migracja z wartością `season.start_date`), cena dalej z historii.
 
 ### Relacje
 
@@ -132,8 +131,8 @@ Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔
 - Instrument zapisujemy (upsert) w momencie zapisu pierwszego wyboru z danym tickerem.
 - Job dzienny pobiera ceny tylko instrumentów, które mają wybory w bieżącym sezonie, oraz benchmarku
   (po zmianie wyboru w oknie zapisów mogą zostać „osierocone” instrumenty — po prostu są pomijane).
-- Cena startowa: zamknięcie z ostatniej sesji ≤ `start_date` danego instrumentu (giełdy mają różne dni wolne).
-- Wynik wyboru: `ostatnie close / start_price - 1`. Wynik gracza: średnia z jego wyborów.
+- Cena startowa: `close` z ostatniej sesji ≤ `season.start_date` danego instrumentu (giełdy mają różne dni wolne).
+- Wynik wyboru: `ostatnie close / cena startowa - 1`. Wynik gracza: średnia z jego wyborów.
   Benchmark: to samo dla instrumentu o `symbol = BENCHMARK_SYMBOL`, z tą samą ceną startową. Zielony = wynik gracza > wynik benchmarku.
 - Kategoria przy tworzeniu instrumentu: z mapowania giełda → `pl` (GPW) / `eu` (giełdy europejskie) / `world` (reszta).
 
@@ -145,7 +144,7 @@ Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔
   filtry, dojdzie osobna lista/tabela.
 - Zmiana kategorii przez admina nie przenosi istniejących wyborów automatycznie.
 - `numeric` dla cen (Drizzle zwraca string — konwersja w kodzie liczącym).
-- Ceny skorygowane o splity; przy splicie job odświeża historię instrumentu i przelicza `start_price`.
+- Ceny skorygowane o splity; przy splicie job odświeża historię instrumentu (cena startowa wylicza się sama).
 - Brak osobnej tabeli „udział gracza w sezonie” — udział = posiadanie wyborów. Do dodania, jeśli pojawią się
   dane per gracz-sezon (np. nick drużyny).
 
