@@ -7,6 +7,9 @@ kto jest powyżej benchmarku, jest na zielono. Docelowo dojdą kategorie: surowi
 
 Schemat: `server/db/schema/game.ts` (re-eksport w `server/db/schema/index.ts`), migracja `server/db/migrations/0001_game_schema.sql`.
 
+Dostawca danych: **Yahoo Finance** przez `yahoo-finance2` (darmowe, bez klucza, nieoficjalne API). Tickery w formacie Yahoo
+(`PKN.WA`, `SIE.DE`, `^GSPC`). Integracja: `docs/superpowers/specs/2026-11-21-yahoo-integration-design.md`.
+
 ## Założenia
 
 - Każdy instrument (spółka, indeks, później surowiec/krypto) jest w bazie **raz** — job dzienny pobiera
@@ -33,7 +36,7 @@ Schemat: `server/db/schema/game.ts` (re-eksport w `server/db/schema/index.ts`), 
 |---|---|---|
 | `symbol` | `text` PK | ticker u dostawcy danych, np. `PKN.WA`, `^GSPC` |
 | `name` | `text` not null | |
-| `exchange` | `text` | kod giełdy od dostawcy |
+| `exchange` | `text` | kod giełdy z Yahoo (`WSE`, `GER`, `NMS`…) |
 | `currency` | `char(3)` not null | |
 | `type` | `instrument_type` not null | |
 | `category` | `asset_category` | `null` dla indeksów (benchmark nie jest do wyboru) |
@@ -67,7 +70,7 @@ PK `(symbol, date)`. Ostatnia cena to najnowszy wiersz
 | `created_at` | `timestamp` not null | |
 
 Benchmark to zawsze S&P 500 — bez kolumny w `season`; instrument wskazywany stałą w kodzie
-(`BENCHMARK_SYMBOL`, np. `^GSPC` u wybranego dostawcy).
+(`BENCHMARK_SYMBOL = '^GSPC'` w `server/utils/game.ts`). Job cen sam dodaje ten instrument do bazy, jeśli go brak (bez osobnego seeda).
 
 ### `pick` — wybór gracza w kategorii
 
@@ -118,12 +121,16 @@ dochodzi kolumna `pick.start_date` (migracja z wartością `season.start_date`),
 - Instrument musi przejść filtry (np. tylko akcje — bez ETF/funduszy/warrantów, opcjonalnie minimalna cena),
   nie może być indeksem, a jego kategoria musi być równa kategorii slotu. Filtry działają już w wynikach
   wyszukiwania (modal: searchbox → API dostawcy) i ponownie przy zapisie wyboru; niedozwolonych instrumentów nie zapisujemy.
-- Instrument zapisywany (upsert) przy zapisie pierwszego wyboru z danym tickerem. Kategoria z mapowania giełdy:
-  `pl` (GPW) / `eu` (giełdy europejskie) / `world` (reszta).
+- Instrument zapisywany (upsert) przy zapisie pierwszego wyboru z danym tickerem (dane z `lookupStock()`). Kategoria z białej
+  listy giełd `EXCHANGE_CATEGORY` w `server/utils/market/normalize.ts`: `pl` (GPW) / `eu` (główne giełdy europejskie) / `world`
+  (główne giełdy reszty świata). Giełdy spoza listy (OTC, regionalne niemieckie, parkiety wtórne) są niedozwolone.
+  Podwójne notowania na głównych giełdach są świadomie dozwolone (np. ASML z NASDAQ trafia do `world`).
 - Job dzienny pobiera ceny tylko instrumentów z wyborami w bieżącym sezonie oraz benchmarku („osierocone”
   instrumenty po zmianie wyboru są pomijane). Dla każdego symbolu pobiera **całą historię sezonu** (od kilku dni
   przed `start_date` do dziś, ceny skorygowane o splity) i robi upsert do `instrument_price` — jedno zapytanie na symbol.
   Dzięki temu splity, brakujące dni i korekty dostawcy poprawiają się same, bez wykrywania zdarzeń `split`.
+  Implementacja: zadanie Nitro `prices:sync` (`server/tasks/prices/sync.ts`), cron 22:30 UTC; okno sezonu z zapasem 7 dni
+  w obie strony, data sesji w strefie czasowej giełdy, ceny zaokrąglone do 4 miejsc.
 - Cena startowa: `close` z ostatniej sesji ≤ `season.start_date` danego instrumentu (giełdy mają różne dni wolne).
 - Wynik wyboru: `ostatnie close / cena startowa − 1`. Wynik gracza: średnia z jego wyborów.
   Benchmark liczony tak samo dla `BENCHMARK_SYMBOL`. Zielony = wynik gracza > wynik benchmarku.
@@ -132,8 +139,7 @@ dochodzi kolumna `pick.start_date` (migracja z wartością `season.start_date`),
 
 ## Do zrobienia
 
-- API, UI, job pobierania cen, wybór dostawcy danych.
-- Seed sezonu 2027 i instrumentu S&P 500.
+- API zapisu wyboru, ranking, UI (modal wyboru korzysta z `GET /api/instruments/search`).
+- Seed sezonu 2027.
 - Rola admina (np. plugin `admin` Better Auth dodający `role` do `user`).
-- Dokładna lista giełd w mapowaniu na kategorie.
 - Blokowanie konkretnych tickerów — jeśli będzie potrzebne, osobna lista/tabela.

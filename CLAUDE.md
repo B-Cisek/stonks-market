@@ -32,6 +32,7 @@ Wersje zainstalowane wg `pnpm-lock.yaml`. W `package.json` część zależności
 | | Drizzle ORM | 0.45.4 |
 | | drizzle-kit | 0.31.11 |
 | | `pg` (node-postgres) | 8.23.1 |
+| Dane rynkowe | `yahoo-finance2` (Yahoo Finance, bez klucza) | 4.0.6 |
 | Język | TypeScript (`typescript` → alias `@typescript/typescript6`) | 6.0.2 |
 | | `@typescript/native` (alias `typescript@7`, natywny kompilator) | 7.0.2 |
 | Jakość | ESLint | 10.15.0 |
@@ -79,6 +80,12 @@ re-eksportowany z `index.ts`:
 - Cena startowa wyboru nie jest zapisywana — wyliczana z `instrument_price` dla `season.start_date`.
 - FK na `instrument.symbol` mają `ON UPDATE CASCADE` (zmiana tickera = jeden `UPDATE instrument`);
   `pick.symbol` ma `ON DELETE RESTRICT`, który Postgres zgłasza jako SQLSTATE `23001` (nie `23503`).
+
+**Dane rynkowe** — Yahoo Finance przez `yahoo-finance2`, moduł `server/utils/market/`: `normalize.ts` (czysta logika:
+biała lista giełd → kategoria, mapowanie odpowiedzi, zapytanie bez diakrytyków) i `yahoo.ts` (`searchStocks` z cache 1 h,
+`lookupStock`, `fetchHistory`). Endpoint `GET /api/instruments/search?q=&category=` tylko dla zalogowanych.
+Zadanie Nitro `prices:sync` (`server/tasks/prices/sync.ts`) — cron 22:30 UTC w `nuxt.config.ts`; w dev ręcznie przez
+`/_nitro/tasks/prices:sync`. Zmiana `nuxt.config.ts` lub nowy plik w `server/tasks/` może wymagać restartu `pnpm dev`.
 
 **Migracje** — generowane przez drizzle-kit (`drizzle.config.ts`), stosowane automatycznie przy starcie serwera
 przez `server/plugins/migrate.ts` (dev i produkcja; błąd migracji kończy proces). Obraz Dockera kopiuje
