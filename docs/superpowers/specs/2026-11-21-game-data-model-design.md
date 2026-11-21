@@ -43,6 +43,8 @@ Docelowo dojdą kategorie: surowiec i kryptowaluta.
 - Spółki trafiają do bazy, gdy gracz wyszuka i wybierze je z zewnętrznego źródła danych;
   kategoria ustalana automatycznie po giełdzie; admin może ją poprawić lub zablokować instrument.
 - Podejście 1.
+- Benchmark zawsze S&P 500 — bez kolumny w `season`; instrument wskazywany stałą w kodzie
+  (`BENCHMARK_SYMBOL`, np. `^GSPC` u wybranego dostawcy).
 
 ## Schemat
 
@@ -97,7 +99,6 @@ PK `(instrument_id, date)`. Job robi upsert i aktualizuje `instrument.last_close
 | `start_date` | date not null | dzień, z którego zamknięcie jest ceną startową |
 | `end_date` | date not null | koniec sezonu (31.12) |
 | `categories` | `asset_category[]` not null default `{pl,eu,world}` | aktywne sloty |
-| `benchmark_instrument_id` | FK → instrument, restrict | S&P 500 (`type = index`) |
 | `created_at` | timestamp | |
 
 ### `pick` — wybór gracza w danej kategorii
@@ -120,8 +121,7 @@ lub z innym scoringiem, nie trzeba przebudowy.
 
 ### Relacje
 
-Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔ picks, season → benchmark,
-user ↔ picks.
+Drizzle `relations` dla: instrument ↔ prices, instrument ↔ picks, season ↔ picks, user ↔ picks.
 
 ## Reguły (logika aplikacji, nie DB)
 
@@ -129,7 +129,7 @@ user ↔ picks.
   instrument musi być `active`, nie `index` i mieć `category` równe kategorii slotu.
 - Cena startowa: zamknięcie z ostatniej sesji ≤ `start_date` danego instrumentu (giełdy mają różne dni wolne).
 - Wynik wyboru: `last_close / start_price - 1`. Wynik gracza: średnia z jego wyborów.
-  Benchmark: to samo dla `benchmark_instrument_id`. Zielony = wynik gracza > wynik benchmarku.
+  Benchmark: to samo dla instrumentu o `provider_symbol = BENCHMARK_SYMBOL`, z tą samą ceną startową. Zielony = wynik gracza > wynik benchmarku.
 - Kategoria przy tworzeniu instrumentu: z mapowania giełda → `pl` (GPW) / `eu` (giełdy europejskie) / `world` (reszta).
 
 ## Decyzje podjęte przeze mnie (do sprawdzenia)
