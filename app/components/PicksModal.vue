@@ -9,6 +9,8 @@ defineProps<{ size?: ButtonProps['size'] }>()
 const emit = defineEmits<{ saved: [] }>()
 
 const toast = useToast()
+const { loggedIn } = useUserSession()
+const route = useRoute()
 const { data, refresh } = await useFetch('/api/picks', { key: 'my-picks' })
 
 const CATEGORY_HINTS: Partial<Record<Category, string>> = {
@@ -121,8 +123,16 @@ async function save() {
 </script>
 
 <template>
+  <!-- gość: zamiast kreatora logowanie z powrotem na tę samą stronę -->
+  <UButton
+    v-if="season && !loggedIn"
+    label="Zaloguj się, aby dołączyć"
+    icon="i-lucide-log-in"
+    :size="size"
+    :to="{ path: '/login', query: { redirect: route.fullPath } }"
+  />
   <UModal
-    v-if="season"
+    v-else-if="season"
     v-model:open="open"
     :title="`Zapisy do sezonu ${season.year}`"
     :description="`Zapisy trwają do ${closesAt}.`"

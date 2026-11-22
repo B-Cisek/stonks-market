@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lte } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, lte } from 'drizzle-orm'
 import { db } from '../db'
 import { instrument, instrumentPrice, pick, season, user } from '../db/schema'
 import type { assetCategory } from '../db/schema'
@@ -138,5 +138,85 @@ export async function getRanking(current: RankingSeason | null): Promise<Ranking
     asOf,
     benchmark: benchmarkReturn === null ? null : { symbol: BENCHMARK_SYMBOL, return: benchmarkReturn },
     players,
+  }
+}
+
+export interface RankingInstrument {
+  symbol: string
+  name: string
+  exchange: string | null
+  currency: string
+  category: Category
+  // ilu graczy wybrało spółkę w tej kategorii
+  pickers: number
+  start: { date: string, close: number } | null
+  last: { date: string, close: number } | null
+  // null, gdy brak cen (np. job jeszcze nie przeszedł)
+  return: number | null
+}
+
+export interface InstrumentRanking {
+  season: Ranking['season']
+  asOf: string | null
+  benchmark: Ranking['benchmark']
+  instruments: RankingInstrument[]
+}
+
+// Ranking spółek wybranych w sezonie (przez kogokolwiek, także bez kompletu), od najlepszego wyniku.
+export async function getInstrumentRanking(current: RankingSeason | null): Promise<InstrumentRanking> {
+  if (!current) {
+    return { season: null, asOf: null, benchmark: null, instruments: [] }
+  }
+
+  const rows = await db
+    .select({
+      symbol: instrument.symbol,
+      name: instrument.name,
+      exchange: instrument.exchange,
+      currency: instrument.currency,
+      category: pick.category,
+      pickers: count(),
+    })
+    .from(pick)
+    .innerJoin(instrument, eq(instrument.symbol, pick.symbol))
+    .where(and(eq(pick.seasonId, current.id), inArray(pick.category, current.categories)))
+    .groupBy(instrument.symbol, pick.category)
+
+  const symbols = [...new Set([...rows.map(r => r.symbol), BENCHMARK_SYMBOL])]
+  const [startCloses, lastCloses] = await Promise.all([
+    closesOnOrBefore(symbols, current.startDate),
+    closesOnOrBefore(symbols, lastDateOf(current)),
+  ])
+
+  const returnOf = (symbol: string): number | null => {
+    const start = startCloses.get(symbol)?.close
+    const last = lastCloses.get(symbol)?.close
+    return start && last !== undefined ? last / start - 1 : null
+  }
+  const benchmarkReturn = returnOf(BENCHMARK_SYMBOL)
+
+  const instruments = rows
+    .map(r => ({
+      ...r,
+      start: startCloses.get(r.symbol) ?? null,
+      last: lastCloses.get(r.symbol) ?? null,
+      return: returnOf(r.symbol),
+    }))
+    // najlepszy wynik pierwszy, spółki bez cen na końcu
+    .sort((a, b) => (b.return ?? -Infinity) - (a.return ?? -Infinity) || b.pickers - a.pickers)
+
+  const usedDates = symbols.map(s => lastCloses.get(s)?.date).filter((d): d is string => !!d)
+  const asOf = usedDates.length ? usedDates.reduce((a, b) => (a > b ? a : b)) : null
+
+  return {
+    season: {
+      year: current.year,
+      startDate: current.startDate,
+      endDate: current.endDate,
+      categories: current.categories,
+    },
+    asOf,
+    benchmark: benchmarkReturn === null ? null : { symbol: BENCHMARK_SYMBOL, return: benchmarkReturn },
+    instruments,
   }
 }

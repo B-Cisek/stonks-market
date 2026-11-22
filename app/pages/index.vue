@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { getPaginationRowModel } from '@tanstack/vue-table'
+import type { FilterFn, PaginationState, SortingState } from '@tanstack/vue-table'
 import type { TableColumn } from '@nuxt/ui'
+import { longDate as dateFormat, matchesText, percent, trendClass } from '~/utils/format'
 import { CATEGORY_LABELS } from '~/utils/picks'
 import type { Category } from '~/utils/picks'
-
-definePageMeta({ auth: 'user' })
+import { sortHeader, width } from '~/utils/table'
 
 const { user } = useUserSession()
 const { data: ranking, status, error, refresh: refreshRanking } = await useFetch('/api/ranking')
@@ -12,27 +14,45 @@ type Player = NonNullable<typeof ranking.value>['players'][number]
 
 const categories = computed(() => ranking.value?.season?.categories ?? [])
 
+// --- tabela: sortowanie, wyszukiwanie, paginacja (wszystko po stronie klienta — ranking i tak przychodzi w całości) ---
+
+const table = useTemplateRef('table')
+
+// pusty = kolejność z API, czyli wg miejsca w rankingu; kolumna "#" zawsze pokazuje miejsce globalne
+const sorting = ref<SortingState>([])
+const globalFilter = ref('')
+const pagination = ref<PaginationState>({ pageIndex: 0, pageSize: 10 })
+
 const columns = computed<TableColumn<Player>[]>(() => [
-  { accessorKey: 'rank', header: '#' },
-  { accessorKey: 'name', header: 'Gracz' },
-  ...categories.value.map(c => ({ id: c, header: CATEGORY_LABELS[c] })),
-  { accessorKey: 'return', header: 'Wynik' },
+  { accessorKey: 'rank', header: sortHeader<Player>('#'), enableSorting: true, sortDescFirst: false, meta: width('w-20') },
+  {
+    accessorKey: 'name',
+    header: sortHeader<Player>('Gracz'),
+    enableSorting: true,
+    sortingFn: (a, b) => a.original.name.localeCompare(b.original.name, 'pl'),
+  },
+  // kolumny kategorii sortują się po wyniku wybranej spółki
+  ...categories.value.map(c => ({
+    id: c,
+    accessorFn: (p: Player) => pickFor(p, c)?.return ?? null,
+    header: sortHeader<Player>(CATEGORY_LABELS[c]),
+    enableSorting: true,
+    meta: width('w-32'),
+  })),
+  { accessorKey: 'return', header: sortHeader<Player>('Wynik'), enableSorting: true, meta: width('w-32') },
 ])
 
-const percent = new Intl.NumberFormat('pl-PL', {
-  style: 'percent',
-  signDisplay: 'exceptZero',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
+// szukamy po nicku gracza oraz tickerze i nazwie każdej z jego spółek, niezależnie od kolumny
+const matchesQuery = (p: Player, query: string) =>
+  matchesText([p.name, ...p.picks.flatMap(pick => [pick.symbol, pick.name])], query)
+const matchesPlayer: FilterFn<Player> = (row, _columnId, query: string) => matchesQuery(row.original, query)
+
+// liczone z danych, nie z tableApi — ref tabeli jest pusty przy SSR
+const filteredCount = computed(() => (ranking.value?.players ?? []).filter(p => matchesQuery(p, globalFilter.value)).length)
+const pageRange = computed(() => {
+  const { pageIndex, pageSize } = pagination.value
+  return { from: pageIndex * pageSize + 1, to: Math.min((pageIndex + 1) * pageSize, filteredCount.value) }
 })
-
-const dateFormat = new Intl.DateTimeFormat('pl-PL', { dateStyle: 'long', timeZone: 'UTC' })
-
-function trendClass(value: number) {
-  if (value > 0) return 'text-success'
-  if (value < 0) return 'text-error'
-  return 'text-muted'
-}
 
 function pickFor(player: Player, category: Category) {
   return player.picks.find(p => p.category === category)
@@ -150,12 +170,43 @@ const myPicks = computed(() => entry.value?.picks ?? [])
       :description="error.statusMessage ?? error.message"
     />
 
-    <UCard :ui="{ body: 'p-0 sm:p-0' }">
+    <UCard :ui="{ body: 'p-0 sm:p-0', header: 'p-3 sm:px-4', footer: 'p-3 sm:px-4' }">
+      <template #header>
+        <UInput
+          v-model="globalFilter"
+          icon="i-lucide-search"
+          placeholder="Szukaj gracza lub spółki…"
+          class="w-full sm:max-w-xs"
+          :ui="{ trailing: 'pe-1' }"
+        >
+          <template
+            v-if="globalFilter"
+            #trailing
+          >
+            <UButton
+              color="neutral"
+              variant="link"
+              size="sm"
+              icon="i-lucide-x"
+              aria-label="Wyczyść wyszukiwanie"
+              @click="globalFilter = ''"
+            />
+          </template>
+        </UInput>
+      </template>
+
       <UTable
+        ref="table"
+        v-model:sorting="sorting"
+        v-model:global-filter="globalFilter"
+        v-model:pagination="pagination"
+        :ui="{ base: 'table-fixed w-full min-w-[52rem]' }"
         :data="ranking?.players ?? []"
         :columns="columns"
         :loading="status === 'pending'"
-        empty="Nikt nie ma jeszcze kompletu wyborów"
+        :empty="globalFilter ? `Brak wyników dla „${globalFilter}”` : 'Nikt nie ma jeszcze kompletu wyborów'"
+        :global-filter-options="{ globalFilterFn: matchesPlayer }"
+        :pagination-options="{ getPaginationRowModel: getPaginationRowModel() }"
         :get-row-id="(row: Player) => row.userId"
         :meta="{ class: { tr: (row) => row.original.userId === user?.id ? 'bg-elevated/50' : '' } }"
       >
@@ -172,7 +223,7 @@ const myPicks = computed(() => entry.value?.picks ?? [])
             />
             <NuxtLink
               :to="`/gracze/${row.original.userId}`"
-              class="truncate font-medium text-highlighted hover:underline"
+              class="min-w-0 truncate font-medium text-highlighted hover:underline"
             >
               {{ row.original.name }}
             </NuxtLink>
@@ -212,6 +263,24 @@ const myPicks = computed(() => entry.value?.picks ?? [])
           </span>
         </template>
       </UTable>
+
+      <template
+        v-if="filteredCount > 0"
+        #footer
+      >
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm text-muted tabular-nums">
+            {{ pageRange.from }}–{{ pageRange.to }} z {{ filteredCount }}
+          </p>
+          <UPagination
+            v-if="filteredCount > pagination.pageSize"
+            :page="pagination.pageIndex + 1"
+            :items-per-page="pagination.pageSize"
+            :total="filteredCount"
+            @update:page="(p: number) => table?.tableApi?.setPageIndex(p - 1)"
+          />
+        </div>
+      </template>
     </UCard>
   </UContainer>
 </template>

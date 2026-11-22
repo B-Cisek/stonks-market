@@ -112,6 +112,16 @@ const formatPrice = (close: number, currency: string) => `${price.format(close)}
             </template>
           </p>
         </div>
+
+        <UButton
+          v-if="data.rank"
+          :to="{ path: '/porownanie', query: { gracze: isMe ? id : [user?.id, id].filter(Boolean).join(',') } }"
+          :label="isMe ? 'Porównaj z innymi' : 'Porównaj ze mną'"
+          icon="i-lucide-chart-spline"
+          color="neutral"
+          variant="outline"
+          class="ms-auto"
+        />
       </div>
 
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
