@@ -1,5 +1,6 @@
 <template>
   <UApp>
+    <NuxtLoadingIndicator color="var(--ui-primary)" />
     <NuxtRouteAnnouncer />
     <div class="min-h-screen flex flex-col">
       <AppHeader />

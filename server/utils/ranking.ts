@@ -50,16 +50,22 @@ export async function getRankingSeason(): Promise<RankingSeason | null> {
 }
 
 // Ostatnie zamknięcie ≤ `date` dla każdego symbolu (giełdy mają różne dni wolne).
+// LATERAL: dla każdego symbolu jeden odczyt indeksu PK (symbol, date) od końca — bez sortowania całej historii,
+// więc czas nie rośnie z długością sezonu. Każdy symbol z cenami ma wiersz w `instrument` (FK).
 export async function closesOnOrBefore(symbols: string[], date: string) {
-  const rows = await db
-    .selectDistinctOn([instrumentPrice.symbol], {
-      symbol: instrumentPrice.symbol,
-      date: instrumentPrice.date,
-      close: instrumentPrice.close,
-    })
+  const last = db
+    .select({ date: instrumentPrice.date, close: instrumentPrice.close })
     .from(instrumentPrice)
-    .where(and(inArray(instrumentPrice.symbol, symbols), lte(instrumentPrice.date, date)))
-    .orderBy(instrumentPrice.symbol, desc(instrumentPrice.date))
+    .where(and(eq(instrumentPrice.symbol, instrument.symbol), lte(instrumentPrice.date, date)))
+    .orderBy(desc(instrumentPrice.date))
+    .limit(1)
+    .as('last')
+
+  const rows = await db
+    .select({ symbol: instrument.symbol, date: last.date, close: last.close })
+    .from(instrument)
+    .crossJoinLateral(last)
+    .where(inArray(instrument.symbol, symbols))
 
   return new Map(rows.map(r => [r.symbol, { date: r.date, close: Number(r.close) }]))
 }
