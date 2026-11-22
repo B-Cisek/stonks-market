@@ -9,6 +9,9 @@ export default defineServerAuth(() => ({
     database: {
       joins: true,
     },
+    ipAddress: {
+      ipAddressHeaders: ['cf-connecting-ip'],
+    },
   },
   socialProviders: {
     kick: {
