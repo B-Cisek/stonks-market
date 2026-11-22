@@ -131,6 +131,7 @@ const edgeOf = (p: Player) => benchmarkReturn.value === null ? null : (p.return 
           :items="items"
           value-key="value"
           multiple
+          virtualize
           open-on-focus
           placeholder="Wpisz nick gracza…"
           class="w-full"
