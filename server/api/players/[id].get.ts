@@ -1,12 +1,10 @@
-import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../../db'
-import { instrument, instrumentPrice, pick, user } from '../../db/schema'
+import { instrument, pick, user } from '../../db/schema'
 import { BENCHMARK_SYMBOL } from '../../utils/benchmark'
-import { getRanking, getRankingSeason, lastDateOf } from '../../utils/ranking'
+import { averageReturns, getSeasonSeries } from '../../utils/history'
+import { getRanking, getRankingSeason } from '../../utils/ranking'
 import type { Category } from '../../utils/ranking'
-
-// zapas przed startem sezonu, żeby znaleźć cenę startową, gdy start wypada w dzień wolny giełdy
-const LOOKBACK_DAYS = 10
 
 export interface PlayerPick {
   category: Category
@@ -26,12 +24,6 @@ export interface PlayerHistoryPoint {
   benchmark: number | null
   // wynik każdej spółki, w kolejności `picks`
   picks: (number | null)[]
-}
-
-function shiftDate(date: string, days: number) {
-  const d = new Date(`${date}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
 }
 
 // GET /api/players/:id — wyniki gracza w bieżącym sezonie: spółki z cenami i dzienna historia wyniku na tle S&P 500.
@@ -72,56 +64,21 @@ export default defineEventHandler(async (event) => {
   ])
   rows.sort((a, b) => current.categories.indexOf(a.category) - current.categories.indexOf(b.category))
 
-  // cała historia sezonu naraz — jedno zapytanie, dalej liczone w pamięci
-  const symbols = [...new Set([...rows.map(r => r.symbol), BENCHMARK_SYMBOL])]
-  const lastDate = lastDateOf(current)
-  const prices = await db
-    .select({ symbol: instrumentPrice.symbol, date: instrumentPrice.date, close: instrumentPrice.close })
-    .from(instrumentPrice)
-    .where(and(
-      inArray(instrumentPrice.symbol, symbols),
-      gte(instrumentPrice.date, shiftDate(current.startDate, -LOOKBACK_DAYS)),
-      lte(instrumentPrice.date, lastDate),
-    ))
-    .orderBy(asc(instrumentPrice.date))
+  const symbols = rows.map(r => r.symbol)
+  const series = await getSeasonSeries(current, [...new Set([...symbols, BENCHMARK_SYMBOL])])
+  const playerReturns = averageReturns(series, symbols)
+  const benchmarkReturns = series.returns.get(BENCHMARK_SYMBOL)!
 
-  const series = new Map<string, { date: string, close: number }[]>(symbols.map(s => [s, []]))
-  for (const p of prices) series.get(p.symbol)!.push({ date: p.date, close: Number(p.close) })
-
-  // cena startowa: ostatnie zamknięcie ≤ start_date (tak samo jak w rankingu)
-  const startOf = (symbol: string) => series.get(symbol)!.findLast(p => p.date <= current.startDate) ?? null
-  const starts = new Map(symbols.map(s => [s, startOf(s)]))
-
-  // oś dat: dzień startu + każda sesja po nim na którejkolwiek giełdzie; ceny przenoszone przez dni wolne
-  const dates = [current.startDate, ...new Set(prices.map(p => p.date).filter(d => d > current.startDate))]
-  const cursor = new Map(symbols.map(s => [s, -1]))
-  const closeOn = (symbol: string, date: string) => {
-    const list = series.get(symbol)!
-    let i = cursor.get(symbol)!
-    while (i + 1 < list.length && list[i + 1]!.date <= date) i++
-    cursor.set(symbol, i)
-    return i >= 0 ? list[i]!.close : null
-  }
-  const returnOn = (symbol: string, date: string) => {
-    const start = starts.get(symbol)?.close
-    const close = closeOn(symbol, date)
-    return start && close !== null ? close / start - 1 : null
-  }
-
-  const history: PlayerHistoryPoint[] = dates.map((date) => {
-    const pickReturns = rows.map(r => returnOn(r.symbol, date))
-    const complete = pickReturns.length > 0 && pickReturns.every(r => r !== null)
-    return {
-      date,
-      player: complete ? (pickReturns as number[]).reduce((a, b) => a + b, 0) / pickReturns.length : null,
-      benchmark: returnOn(BENCHMARK_SYMBOL, date),
-      picks: pickReturns,
-    }
-  })
+  const history: PlayerHistoryPoint[] = series.dates.map((date, d) => ({
+    date,
+    player: playerReturns[d] ?? null,
+    benchmark: benchmarkReturns[d] ?? null,
+    picks: symbols.map(s => series.returns.get(s)![d] ?? null),
+  }))
 
   const picks: PlayerPick[] = rows.map((r) => {
-    const start = starts.get(r.symbol) ?? null
-    const last = series.get(r.symbol)!.at(-1) ?? null
+    const start = series.starts.get(r.symbol) ?? null
+    const last = series.lasts.get(r.symbol) ?? null
     return { ...r, start, last, return: start && last ? last.close / start.close - 1 : null }
   })
 

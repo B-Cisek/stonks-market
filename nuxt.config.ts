@@ -17,7 +17,8 @@ export default defineNuxtConfig({
     redirects: {
       login: '/login',
       guest: '/',
-      logout: '/login',
+      // ranking jest publiczny, więc po wylogowaniu wracamy na stronę główną
+      logout: '/',
     },
   },
   eslint: {
