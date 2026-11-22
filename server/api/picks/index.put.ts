@@ -3,6 +3,7 @@ import { db } from '../../db'
 import { instrument, pick } from '../../db/schema'
 import type { assetCategory } from '../../db/schema'
 import { lookupStock } from '../../utils/market/yahoo'
+import { invalidateRankingCache } from '../../utils/ranking'
 import { getEntrySeason } from '../../utils/season'
 
 type Category = typeof assetCategory.enumValues[number]
@@ -97,6 +98,9 @@ export default defineEventHandler(async (event) => {
       target: [pick.seasonId, pick.userId, pick.category],
       set: { symbol: sql`excluded.symbol`, updatedAt: new Date() },
     })
+
+  // okno zapisów może nachodzić na start sezonu — wtedy ranking się zmienia
+  await invalidateRankingCache()
 
   return { ok: true }
 })

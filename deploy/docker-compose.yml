@@ -19,6 +19,8 @@ services:
       - traefik.http.routers.stonks-market.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
       - traefik.http.routers.stonks-market.tls=true
       - traefik.http.routers.stonks-market.tls.certresolver=${TRAEFIK_CERTRESOLVER:-cf}
+      - traefik.http.middlewares.stonks-market-compress.compress=true
+      - traefik.http.routers.stonks-market.middlewares=stonks-market-compress
       - traefik.http.services.stonks-market.loadbalancer.server.port=3000
 
 volumes:
