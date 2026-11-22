@@ -70,8 +70,42 @@ export async function closesOnOrBefore(symbols: string[], date: string) {
   return new Map(rows.map(r => [r.symbol, { date: r.date, close: Number(r.close) }]))
 }
 
+// --- cache rankingów ---
+// Rankingi zmieniają się tylko po `prices:sync` i po zapisie wyborów — oba miejsca wołają invalidateRankingCache().
+// Unieważnienie = nowa wersja w kluczu: obliczenie, które trwało w chwili zmiany, zapisze się pod starym kluczem
+// i nikt go już nie odczyta (samo kasowanie wpisów miałoby ten wyścig). Wersja startuje od czasu uruchomienia,
+// bo w dev cache leży na dysku i przetrwałby restart. Wpisy trzymane jako JSON — zwracamy zwykłe obiekty.
+const RANKING_CACHE = ['ranking', 'instrument-ranking']
+let rankingCacheVersion = Date.now()
+
+// dzień w kluczu, bo sezon rankingu i ostatni dzień wyceny zależą od dzisiejszej daty
+const rankingCacheKey = (current: RankingSeason | null) =>
+  `${current?.id ?? 'none'}-${todayUtc()}-${rankingCacheVersion}`
+
+export async function invalidateRankingCache() {
+  rankingCacheVersion++
+  // sprzątanie starych wpisów (cache w produkcji jest w pamięci procesu)
+  const storage = useStorage('cache:nitro:functions')
+  const keys = (await Promise.all(RANKING_CACHE.map(name => storage.getKeys(name)))).flat()
+  await Promise.all(keys.map(key => storage.removeItem(key)))
+}
+
+// Ranking sezonu (z cache).
+export const getRanking = defineCachedFunction(computeRanking, {
+  name: 'ranking',
+  maxAge: 60 * 60 * 24,
+  getKey: rankingCacheKey,
+})
+
+// Ranking spółek sezonu (z cache).
+export const getInstrumentRanking = defineCachedFunction(computeInstrumentRanking, {
+  name: 'instrument-ranking',
+  maxAge: 60 * 60 * 24,
+  getKey: rankingCacheKey,
+})
+
 // Ranking sezonu liczony w locie z ostatnich cen.
-export async function getRanking(current: RankingSeason | null): Promise<Ranking> {
+async function computeRanking(current: RankingSeason | null): Promise<Ranking> {
   if (!current) {
     return { season: null, asOf: null, benchmark: null, players: [] }
   }
@@ -169,7 +203,7 @@ export interface InstrumentRanking {
 }
 
 // Ranking spółek wybranych w sezonie (przez kogokolwiek, także bez kompletu), od najlepszego wyniku.
-export async function getInstrumentRanking(current: RankingSeason | null): Promise<InstrumentRanking> {
+async function computeInstrumentRanking(current: RankingSeason | null): Promise<InstrumentRanking> {
   if (!current) {
     return { season: null, asOf: null, benchmark: null, instruments: [] }
   }

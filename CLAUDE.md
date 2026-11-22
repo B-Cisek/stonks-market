@@ -88,6 +88,10 @@ biała lista giełd → kategoria, mapowanie odpowiedzi, zapytanie bez diakrytyk
 Zadanie Nitro `prices:sync` (`server/tasks/prices/sync.ts`) — cron 22:30 UTC w `nuxt.config.ts`; w dev ręcznie przez
 `/_nitro/tasks/prices:sync`. Zmiana `nuxt.config.ts` lub nowy plik w `server/tasks/` może wymagać restartu `pnpm dev`.
 
+**Cache rankingów** — `getRanking` i `getInstrumentRanking` (`server/utils/ranking.ts`) to `defineCachedFunction`
+(klucz: sezon + dzień UTC + wersja). Wszystko, co zmienia ceny albo wybory, musi wołać `invalidateRankingCache()`
+(dziś: koniec `prices:sync` i `PUT /api/picks`). Cache'ujemy funkcje, nie handlery — handler z auth musi się wykonać.
+
 **Migracje** — generowane przez drizzle-kit (`drizzle.config.ts`), stosowane automatycznie przy starcie serwera
 przez `server/plugins/migrate.ts` (dev i produkcja; błąd migracji kończy proces). Obraz Dockera kopiuje
 `server/db/migrations` obok `.output`. Każda wygenerowana migracja trafia więc na produkcję przy następnym deployu.

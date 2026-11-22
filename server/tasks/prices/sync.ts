@@ -4,6 +4,7 @@ import { db } from '../../db'
 import { instrument, instrumentPrice, pick, season } from '../../db/schema'
 import { BENCHMARK_INSTRUMENT, BENCHMARK_SYMBOL } from '../../utils/benchmark'
 import { fetchHistory } from '../../utils/market/yahoo'
+import { invalidateRankingCache } from '../../utils/ranking'
 
 // zapas na święta przed startem sezonu i późne korekty dostawcy po jego końcu
 const SEASON_MARGIN_DAYS = 7
@@ -68,6 +69,8 @@ export default defineTask({
         }
       }
     }
+
+    await invalidateRankingCache()
 
     console.info(`[prices:sync] ok: ${ok}, failed: ${failed.length}`, failed)
     return { result: { ok, failed } }
